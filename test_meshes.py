@@ -2,12 +2,54 @@ from dolfin import *
 from random import sample
 from fenics_ii.trace_tools.embedded_mesh import EmbeddedMesh
 from mesh_around_1d import mesh_around_1d
+from mesh_around_2d import mesh_around_2d
 from meshconvert import convert2xml
 import subprocess, os
 import numpy as np
 
 
-def test(path, with_mapping=True):
+def test2d(path, with_mapping=True):
+    '''Check the pipiline'''
+    # Geo, rely on defaults
+    geo  = mesh_around_2d(path)
+    assert os.path.exists(geo)
+
+    # Generate mesh msh
+    timer = Timer('GMSH')
+    timer.start()
+    info('Generating %dD mesh around line. This may take some time.' % gdim)
+
+    out =subprocess.check_output(['gmsh', '--version'], stderr=subprocess.STDOUT)
+    assert out.split('.')[0] == '3', 'Gmsh 3+ is required'
+    
+    ccall= 'gmsh -3 -optimize %s' % geo
+    subprocess.call(ccall, shell=True)
+    
+    root, ext = os.path.splitext(geo)
+    msh_file = '.'.join([root, 'msh'])
+    assert os.path.exists(msh_file)
+    info('Done in %g s' % timer.stop())
+    
+    # Convert to xml
+    xml_file = '.'.join([root, 'xml'])
+    convert2xml(msh_file, xml_file)
+
+    # There should be a mesh, physical, embedded
+    assert os.path.exists(xml_file)
+    volume_file = '.'.join(['_'.join([root, 'physical_region']), 'xml'])
+    assert os.path.exists(volume_file)
+
+    delete = [xml_file, volume_file]
+    manifold_file = '.'.join(['_'.join([root, 'facet_region']), 'xml'])
+    assert os.path.exists(manifold_file)
+    delete.append(manifold_file)
+
+    # FIXME: consistencies
+    
+    return True
+
+
+def test1d(path, with_mapping=True):
     '''Check the pipiline'''
     # Geo, rely on defaults
     geo, gdim = mesh_around_1d(path)
@@ -63,7 +105,7 @@ def test(path, with_mapping=True):
     return True
 
 
-def mesh_2d():
+def mesh_1d2d():
     '''Generate data'''
     mesh = UnitSquareMesh(32, 32)
     mesh.init(1)
@@ -81,7 +123,7 @@ def mesh_2d():
     return out
 
 
-def mesh_3d():
+def mesh_1d3d():
     '''Generate data'''
     mesh = UnitCubeMesh(16, 16, 16)
     mesh.init(1)
@@ -98,9 +140,23 @@ def mesh_3d():
 
     return out
 
+
+def mesh_2d3d():
+    '''Generate data'''
+    mesh = UnitCubeMesh(16, 16, 16)
+    mesh = BoundaryMesh(mesh, 'exterior')
+
+    out = 'mesh2d3d.xml'
+    File(out) << mesh
+    
+    return out
+
 # --------------------------------------------------------------------
 
 if __name__ == '__main__':
     # Markers -> geo -> gmsh -> assumptions -> cleanup
-    assert test(mesh_2d())
-    assert test(mesh_3d())
+    assert test1d(mesh_1d2d())
+    assert test1d(mesh_1d3d())
+
+    # assert test2d(mesh_2d3d())
+
