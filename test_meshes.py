@@ -10,10 +10,9 @@ import numpy as np
 def test(path, with_mapping=True):
     '''Check the pipiline'''
     # Geo, rely on defaults
-    geo, bbox = mesh_around_1d(path)
+    geo, gdim = mesh_around_1d(path)
     assert os.path.exists(geo)
 
-    gdim = 2 if bbox == 'Surface' else 3
     # Generate mesh msh
     timer = Timer('GMSH')
     timer.start()

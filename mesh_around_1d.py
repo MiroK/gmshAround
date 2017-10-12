@@ -5,12 +5,12 @@ import os
 # We don't know how to deal with tight bbox intersecting the surface and so
 # are forced to have the bbox larger. Would be nice to handle this.
 
-def mesh_around_1d(mesh, size=-1, scale=10, padding=0.05):
+def mesh_around_1d(mesh, size=1, scale=10, padding=0.05):
     '''
     From a 1d in xd (X > 1) mesh (in XML format) produce a Xd mesh where
     the 1d structure is embedded. Mesh size close to strucure should 
-    be size, elsewhere scale * size. Padding controls size of the bounding
-    box.
+    be size(given as multiple of hmin(), elsewhere scale * size. Padding 
+    controls size of the bounding box.
     '''
     dot = mesh.find('.')
     root, ext = mesh[:dot], mesh[dot:]
@@ -24,10 +24,8 @@ def mesh_around_1d(mesh, size=-1, scale=10, padding=0.05):
     mesh.init(1, 0)
 
     # Compute fall back mesh size:
-    if size < 0:
-        size = mesh.hmin()/2.
-    else:
-        assert size > 0
+    assert size > 0
+    size = mesh.hmin()*size
 
     # Don't allow zero padding - collision of lines with bdry segfaults
     # too ofter so we prevent it
@@ -89,23 +87,4 @@ def mesh_around_1d(mesh, size=-1, scale=10, padding=0.05):
         # Add Physical surface/line
         lines = ', '.join(map(lambda v: '%d' % v, xrange(1, mesh.num_cells()+1)))
         outfile.write('Physical Line(1) = {%s};\n' % lines)
-    return geo, bbox
-
-# -------------------------------------------------------------------
-
-if __name__ == '__main__':
-    import argparse
-    import sys
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument('mesh', type=str, help='path to XML mesh')
-    parser.add_argument('--size', type=float, default=-1,
-                        help='characteristic mesh size at 1d points (default is h/2)')
-    parser.add_argument('--scale', type=float, default=10.,
-                        help='scale * size will be the charactic size elsewhere')
-    parser.add_argument('--padding', type=float, default=0.05,
-                        help='multiple of bbox size to to bbox (default 0.1)')
-    
-    args = parser.parse_args()
-
-    sys.exit(mesh_around_1d(args.mesh, args.size, args.scale, args.padding))
+    return geo, gdim
