@@ -19,6 +19,9 @@ def test(path, with_mapping=True):
     timer.start()
     info('Generating %dD mesh around line. This may take some time.' % gdim)
 
+    out =subprocess.check_output(['gmsh', '--version'], stderr=subprocess.STDOUT)
+    assert out.split('.')[0] == '3', 'Gmsh 3+ is required'
+    
     ccall= 'gmsh -%d -optimize %s' % (gdim, geo)
     subprocess.call(ccall, shell=True)
     

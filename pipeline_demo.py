@@ -3,6 +3,7 @@ from dolfin import *
 from random import sample
 from fenics_ii.trace_tools.embedded_mesh import EmbeddedMesh
 from mesh_around_1d import mesh_around_1d
+from tools import transfer_vertex_function
 from meshconvert import convert2xml
 import subprocess, os
 import numpy as np
@@ -21,10 +22,11 @@ mesh = EmbeddedMesh(mesh, f, 1).mesh
 # Fake data
 data = VertexFunction('double', mesh, 0)
 
-# Set to distance from ori so that we can check later
+# Set to something linear depending on coords i) can check ii) can interpolate
+# exactly
 origin = Point(0., 0.)
 for vertex in vertices(mesh):
-    data[vertex] = vertex.point().distance(origin)
+    data[vertex] = sum(vertex.point().array())
 
 out, out_data = 'foo.xml', 'foo_data.xml'
 File(out) << mesh
@@ -32,6 +34,9 @@ File(out_data) << data
 
 # Create the 2d mesh around it
 geo, _ = mesh_around_1d(out)
+
+out =subprocess.check_output(['gmsh', '--version'], stderr=subprocess.STDOUT)
+assert out.split('.')[0] == '3', 'Gmsh 3+ is required'
 
 ccall= 'gmsh -%d -optimize %s' % (2, geo)
 subprocess.call(ccall, shell=True)
@@ -77,21 +82,13 @@ for edge in np.loadtxt('foo_1d.txt'): embedded_mark[int(edge)] = 1
 # Now let there be 1d mesh
 mesh1d = EmbeddedMesh(mesh, embedded_mark, 1)
 
-# To transfer the data
-f = VertexFunction('double', mesh1d.mesh, -1)
-mesh1d_indices = mesh1d.entity_map[0]
+# Transfer the data from XML on original 1d to here
+f = transfer_vertex_function(mesh1d, data)
 
-# Now this guy has data for all vertices of orig mesh
-for i, value in np.loadtxt('foo_1d_data.txt'):
-    # We know that this is also i-th vertex in Xd mesh and need to
-    # find where it is in emebedded
-    f[mesh1d_indices.index(int(i))] = value
-
-# Let's see that we assigned correctly
+# Let's we that we did it okay
 for vertex in vertices(mesh1d.mesh):
-    value = f[vertex]
-    if value != -1:
-        assert abs(vertex.point().distance(origin)-value) < 1E-13
+    assert abs(sum(vertex.point().array()) - f[vertex]) < 1E-13, \
+        ('%.16f' % abs(f[vertex] - sum(vertex.point().array())))
 
 # FIXME: EmbeddedMesh mesh should be mesh
 # FIXME: at this poitn we don't have data on all the vertices as the

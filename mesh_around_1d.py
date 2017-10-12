@@ -1,10 +1,13 @@
-from dolfin import Mesh, cells
+from dolfin import Mesh, cells, edges
 import os
 
+# FIXME
+# We don't know how to deal with tight bbox intersecting the surface and so
+# are forced to have the bbox larger. Would be nice to handle this.
 
 def mesh_around_1d(mesh, size=-1, scale=10, padding=0.05):
     '''
-    From a Xd in 1d (X > 1) mesh (in XML format) produce a Xd mesh where
+    From a 1d in xd (X > 1) mesh (in XML format) produce a Xd mesh where
     the 1d structure is embedded. Mesh size close to strucure should 
     be size, elsewhere scale * size. Padding controls size of the bounding
     box.
