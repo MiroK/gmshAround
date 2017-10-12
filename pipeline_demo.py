@@ -8,15 +8,27 @@ from meshconvert import convert2xml
 import subprocess, os
 import numpy as np
 
-# Fabricate some 1d mesh and store it together with some vertex function
-mesh = UnitSquareMesh(32, 32)
-mesh.init(1)
+dim = 3
+if dim == 2:
+    # Fabricate some 1d mesh and store it together with some vertex function
+    mesh = UnitSquareMesh(32, 32)
+    mesh.init(1)
 
-n = mesh.num_entities(1)
-f = FacetFunction('size_t', mesh, 0)
+    n = mesh.num_entities(1)
+    f = FacetFunction('size_t', mesh, 0)
 
-for i in sample(range(n), n/4): f[i] = 1
+    for i in sample(range(n), n/4): f[i] = 1
+else:
+    assert dim == 3
 
+    mesh = UnitCubeMesh(16, 16, 16)
+    mesh.init(1)
+
+    n = mesh.num_entities(1)
+    f = EdgeFunction('size_t', mesh, 0)
+
+    for i in sample(range(n), n/8): f[i] = 1
+        
 # The 1d mesh
 mesh = EmbeddedMesh(mesh, f, 1).mesh
 # Fake data
@@ -38,7 +50,7 @@ geo, _ = mesh_around_1d(out)
 out =subprocess.check_output(['gmsh', '--version'], stderr=subprocess.STDOUT)
 assert out.split('.')[0] == '3', 'Gmsh 3+ is required'
 
-ccall= 'gmsh -%d -optimize %s' % (2, geo)
+ccall= 'gmsh -%d -optimize %s' % (dim, geo)
 subprocess.call(ccall, shell=True)
     
 # Convert
@@ -52,23 +64,21 @@ meshXd = Mesh(xml_file)
 assert np.linalg.norm(mesh.coordinates() -
                       meshXd.coordinates()[:mesh.num_vertices()]) < 1E-13
 
-line_f = MeshFunction('size_t', meshXd, 'foo_facet_region.xml')
+if dim == 2:
+    line_f = MeshFunction('size_t', meshXd, 'foo_facet_region.xml')
+else:
+    line_f = MeshFunction('size_t', meshXd, 'foo_edge_region.xml')
+    
 assert all(line_f[e] == 1 or line_f[e] == 0 for e in edges(meshXd))
 
 # Just a list of edges which are 1
 np.savetxt('foo_1d.txt', [edge.index() for edge in SubsetIterator(line_f, 1)])
 
-
-# Data from 1d can be represented as a list
-np.savetxt('foo_1d_data.txt',
-           [[vertex.index(), data[vertex]] for vertex in vertices(mesh)])
-# Original 1d
-
 ################
 # Loading part
 ################
 # Now we going to build the 1d mesh back and get the data as well
-mesh = Mesh('foo.xml')  # 2d
+mesh = Mesh('foo.xml')  # 2d ro 3d
 
 # FIXME: embedded mesh should accept a list
 embedded_mark = EdgeFunction('size_t', mesh, 0)
@@ -89,10 +99,8 @@ f = transfer_vertex_function(mesh1d, data)
 for vertex in vertices(mesh1d.mesh):
     assert abs(sum(vertex.point().array()) - f[vertex]) < 1E-13, \
         ('%.16f' % abs(f[vertex] - sum(vertex.point().array())))
+    
+map(os.remove, filter(lambda f: f.startswith('foo'), os.listdir('.')))
 
 # FIXME: EmbeddedMesh mesh should be mesh
-# FIXME: at this poitn we don't have data on all the vertices as the
-#        mesh is typically finer then what we started with. So we need
-#        to interpolate the rest. This could be done as part of smoothing
-
-map(os.remove, filter(lambda f: f.startswith('foo'), os.listdir('.')))
+# FIXME: smoothing
