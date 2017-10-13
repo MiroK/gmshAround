@@ -62,8 +62,11 @@ def test1d(path, with_mapping=True):
 
     out =subprocess.check_output(['gmsh', '--version'], stderr=subprocess.STDOUT)
     assert out.split('.')[0] == '3', 'Gmsh 3+ is required'
-    
-    ccall= 'gmsh -%d -optimize %s' % (gdim, geo)
+
+    if gdim == 2:
+        ccall= 'gmsh -2 -optimize %s' % geo
+    else:
+        ccall= 'gmsh -3 -optimize %s' % geo
     subprocess.call(ccall, shell=True)
     
     root, ext = os.path.splitext(geo)

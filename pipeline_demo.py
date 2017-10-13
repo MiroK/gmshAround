@@ -50,9 +50,13 @@ geo, _ = mesh_around_1d(out)
 out =subprocess.check_output(['gmsh', '--version'], stderr=subprocess.STDOUT)
 assert out.split('.')[0] == '3', 'Gmsh 3+ is required'
 
-ccall= 'gmsh -%d -optimize %s' % (dim, geo)
+# FIXME: what is this lloyd thing?
+if gdim == 2:
+    ccall= 'gmsh -2 -optimize %s' % geo
+else:
+    ccall= 'gmsh -3 -optimize %s' % geo
 subprocess.call(ccall, shell=True)
-    
+
 # Convert
 xml_file = 'foo.xml'
 msh_file = 'foo.msh'
