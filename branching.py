@@ -1,5 +1,7 @@
 from dolfin import Mesh, MeshEditor, cells
+from itertools import izip, count
 import networkx as nx
+import numpy as np
 
 
 def assertions_hold(mesh):
@@ -159,60 +161,128 @@ class Walker(object):
             yield link, d
 
             prev = link
+
             
+def smooth_data(data, tol=50):
+    '''
+    The radius is not allowed to have spikes (>tol) on the branch other 
+    than at its beginning or its end. 
+    '''
+    mesh = data.mesh()
+    terminals, branches = find_branches(mesh)
+    # Pointer
+    values = data.array()
+
+    w = Walker(mesh)
+    for branch in branches:
+
+        branch_indices, h = map(list, list(zip(*list(w.walk(branch)))))
+
+        branch_values = values[branch_indices]
+        spikes = set(np.where(branch_values > tol)[0])
+
+        # Remove fist/last if there
+        for i in (0, len(branch_indices)-1):
+            try:
+                spikes.remove(i)
+            except KeyError:
+                pass
+            
+        if len(spikes) == 0: continue
+
+        # Okay we have a job to todo; determine the value as a neighbor
+        # that is not spike
+        not_spikes = sorted(set(range(len(branch_indices))) - set(spikes))
+        for spike in spikes:
+            for nleft, nright in izip(count(spike-1, -1), count(spike+1, 1)):
+                if nleft in not_spikes:
+                    branch_values[spike] = branch_values[nleft]
+                    break
+
+                if nright in not_spikes:
+                    branch_values[spike] = branch_values[nright]
+                    break
+                
+        values[branch_indices] = branch_values
+        
 # -------------------------------------------------------------------
+
+# from dolfin import MeshFunction, File, CellFunction, Cell, near
+
+# mesh = Mesh('vasc_mesh.xml.gz')
+# data = MeshFunction('int', mesh, 'widths.xml.gz')
+# data = data.array()
+
+# # Original
+# mesh.init(1, 0)
+# data_o = CellFunction('double', mesh, 0)
+
+# for cell in cells(mesh):
+#     data_o[cell] = sum(data[cell.entities(0)])/2.
+# File('data_original.pvd') << data_o
+
+# terminals, branches = find_branches(mesh)
+
+# rmesh = reduced_mesh(mesh)
+# node_map = rmesh.parent_vertex_indices
+
+# rmesh.init(1, 0)
+# # Let's see how bumpy the coarse representation is
+# rmesh_foo = CellFunction('double', rmesh, 0)
+# for cell in cells(rmesh): rmesh_foo[cell] = sum(data[cell.entities(0)])/2.
+
+# File('data_coarse.pvd') << rmesh_foo
+
+
+# w = Walker(mesh)
+
+# # Checks: distance increases monot, all the points produced by the walker
+# # are all the points on the branch
+# if False:
+#     mesh.init(1, 0)
+#     for branch in branches:
+
+#         pts = set()
+#         for p, d in w.walk(branch):
+#             pts.add(p)
+#         distance = d
+
+#         distance_ = sum(Cell(mesh, c).volume() for c in branch)
+#         assert near(distance, distance_), (distance, distance_)
+
+#         pts_ = set(sum((Cell(mesh, c).entities(0).tolist() for c in branch), []))
+#         assert pts ==  pts_, (pts, pts_)
 
 from dolfin import MeshFunction, File, CellFunction, Cell, near
 
 mesh = Mesh('vasc_mesh.xml.gz')
 data = MeshFunction('int', mesh, 'widths.xml.gz')
-data = data.array()
-
-# Original
-mesh.init(1, 0)
-data_o = CellFunction('double', mesh, 0)
-
-for cell in cells(mesh):
-    data_o[cell] = sum(data[cell.entities(0)])/2.
-File('data_original.pvd') << data_o
 
 terminals, branches = find_branches(mesh)
 
-rmesh = reduced_mesh(mesh)
-node_map = rmesh.parent_vertex_indices
-
-rmesh.init(1, 0)
-# Let's see how bumpy the coarse representation is
-rmesh_foo = CellFunction('double', rmesh, 0)
-for cell in cells(rmesh): rmesh_foo[cell] = sum(data[cell.entities(0)])/2.
-
-File('data_coarse.pvd') << rmesh_foo
-
 w = Walker(mesh)
 
-# Checks: distance increases monot, all the points produced by the walker
-# are all the points on the branch
-if False:
-    mesh.init(1, 0)
-    for branch in branches:
-
-        pts = set()
-        for p, d in w.walk(branch):
-            pts.add(p)
-        distance = d
-
-        distance_ = sum(Cell(mesh, c).volume() for c in branch)
-        assert near(distance, distance_), (distance, distance_)
-
-        pts_ = set(sum((Cell(mesh, c).entities(0).tolist() for c in branch), []))
-        assert pts ==  pts_, (pts, pts_)
 
 import matplotlib.pyplot as plt
+plt.figure()
 # Let's see how badly the data oscillates
 for branch in branches:
     x, y = [], []
     for p, d in w.walk(branch):
         x.append(d)
-        y.append(data[p])
+        y.append(data[int(p)])
     plt.plot(x, y)
+
+smooth_data(data)    
+
+plt.figure()
+
+for branch in branches:
+    x, y = [], []
+    for p, d in w.walk(branch):
+        x.append(d)
+        y.append(data[int(p)])
+    plt.plot(x, y)
+
+
 plt.show()
