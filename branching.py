@@ -1,3 +1,4 @@
+from dolfin import FunctionSpace, Function, dof_to_vertex_map, interpolate
 from dolfin import Mesh, MeshEditor, cells
 from itertools import izip, count
 import networkx as nx
@@ -204,85 +205,20 @@ def smooth_data(data, tol=50):
                     break
                 
         values[branch_indices] = branch_values
+
         
-# -------------------------------------------------------------------
+def vertex_to_DG0_foo(data):
+    '''
+    Convert vertex function to DG0 function on the same mesh
+    '''
+    mesh = data.mesh()
+    # Build CG
+    P1 = FunctionSpace(mesh, 'CG', 1)
+    f = Function(P1)
+    f.vector().set_local(np.array(data.array()[dof_to_vertex_map(P1)], dtype=float))
+    f.vector().apply('insert')
+    # Then gen midpoint value by interpolation
+    DG0 = FunctionSpace(mesh, 'DG', 0)
+    f = interpolate(f, DG0)
 
-# from dolfin import MeshFunction, File, CellFunction, Cell, near
-
-# mesh = Mesh('vasc_mesh.xml.gz')
-# data = MeshFunction('int', mesh, 'widths.xml.gz')
-# data = data.array()
-
-# # Original
-# mesh.init(1, 0)
-# data_o = CellFunction('double', mesh, 0)
-
-# for cell in cells(mesh):
-#     data_o[cell] = sum(data[cell.entities(0)])/2.
-# File('data_original.pvd') << data_o
-
-# terminals, branches = find_branches(mesh)
-
-# rmesh = reduced_mesh(mesh)
-# node_map = rmesh.parent_vertex_indices
-
-# rmesh.init(1, 0)
-# # Let's see how bumpy the coarse representation is
-# rmesh_foo = CellFunction('double', rmesh, 0)
-# for cell in cells(rmesh): rmesh_foo[cell] = sum(data[cell.entities(0)])/2.
-
-# File('data_coarse.pvd') << rmesh_foo
-
-
-# w = Walker(mesh)
-
-# # Checks: distance increases monot, all the points produced by the walker
-# # are all the points on the branch
-# if False:
-#     mesh.init(1, 0)
-#     for branch in branches:
-
-#         pts = set()
-#         for p, d in w.walk(branch):
-#             pts.add(p)
-#         distance = d
-
-#         distance_ = sum(Cell(mesh, c).volume() for c in branch)
-#         assert near(distance, distance_), (distance, distance_)
-
-#         pts_ = set(sum((Cell(mesh, c).entities(0).tolist() for c in branch), []))
-#         assert pts ==  pts_, (pts, pts_)
-
-from dolfin import MeshFunction, File, CellFunction, Cell, near
-
-mesh = Mesh('vasc_mesh.xml.gz')
-data = MeshFunction('int', mesh, 'widths.xml.gz')
-
-terminals, branches = find_branches(mesh)
-
-w = Walker(mesh)
-
-
-import matplotlib.pyplot as plt
-plt.figure()
-# Let's see how badly the data oscillates
-for branch in branches:
-    x, y = [], []
-    for p, d in w.walk(branch):
-        x.append(d)
-        y.append(data[int(p)])
-    plt.plot(x, y)
-
-smooth_data(data)    
-
-plt.figure()
-
-for branch in branches:
-    x, y = [], []
-    for p, d in w.walk(branch):
-        x.append(d)
-        y.append(data[int(p)])
-    plt.plot(x, y)
-
-
-plt.show()
+    return f
